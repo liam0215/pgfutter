@@ -37,9 +37,11 @@ func parseDelimiter(delim string, skip bool) string {
 }
 
 // Parse columns from first header row or from flags
-func parseColumns(reader *csv.Reader, skipHeader bool, fields string) ([]string, error) {
+func parseColumns(reader *csv.Reader, skipHeader bool, fields string) ([]string, []string, error) {
 	var err error
 	var columns []string
+	var columnTypes []string
+
 	if fields != "" {
 		columns = strings.Split(fields, ",")
 
@@ -48,25 +50,35 @@ func parseColumns(reader *csv.Reader, skipHeader bool, fields string) ([]string,
 		}
 	} else {
 		columns, err = reader.Read()
+		for i := 1; i < len(columns); i += 2 {
+			columnTypes = append(columnTypes, strings.Trim(columns[i], " \")"))
+		}
+		var tempColumns []string
+		for i := 0; i < len(columns); i += 2 {
+			tempColumns = append(tempColumns, strings.Trim(columns[i], " (\""))
+		}
+		columns = tempColumns
 		fmt.Printf("%v columns\n%v\n", len(columns), columns)
 		if err != nil {
 			fmt.Printf("FOUND ERR\n")
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	for _, col := range columns {
 		if containsDelimiter(col) {
-			return columns, errors.New("Please specify the correct delimiter with -d.\n" +
+			return columns, columnTypes, errors.New("Please specify the correct delimiter with -d.\n" +
 				"Header column contains a delimiter character: " + col)
 		}
 	}
 
 	for i, col := range columns {
 		columns[i] = postgresify(col)
+		columnTypes[i] = postgresify(columnTypes[i])
 	}
+	fmt.Println("columnTypes: ", columnTypes)
 
-	return columns, nil
+	return columns, columnTypes, nil
 }
 
 func copyCSVRows(i *Import, reader *csv.Reader, ignoreErrors bool,
@@ -159,12 +171,12 @@ func importCSV(filename string, connStr string, schema string, tableName string,
 		reader = csv.NewDialectReader(os.Stdin, dialect)
 	}
 
-	columns, err := parseColumns(reader, skipHeader, fields)
+	columns, columnTypes, err := parseColumns(reader, skipHeader, fields)
 	if err != nil {
 		return err
 	}
 
-	i, err := NewCSVImport(db, schema, tableName, columns)
+	i, err := NewCSVImport(db, schema, tableName, columns, columnTypes)
 	if err != nil {
 		return err
 	}

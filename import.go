@@ -11,9 +11,9 @@ type Import struct {
 	stmt *sql.Stmt
 }
 
-func NewCSVImport(db *sql.DB, schema string, tableName string, columns []string) (*Import, error) {
+func NewCSVImport(db *sql.DB, schema string, tableName string, columns []string, columnTypes []string) (*Import, error) {
 
-	table, err := createTable(db, schema, tableName, columns)
+	table, err := createTable(db, schema, tableName, columns, columnTypes)
 	if err != nil {
 		return nil, err
 	}
